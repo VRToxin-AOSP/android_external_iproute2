@@ -6,7 +6,7 @@ LOCAL_CLANG := false
 LOCAL_SRC_FILES :=  tc.c tc_qdisc.c q_cbq.c tc_util.c tc_class.c tc_core.c m_action.c \
                     m_estimator.c tc_filter.c tc_monitor.c tc_stab.c tc_cbq.c \
                     tc_estimator.c f_u32.c m_police.c q_ingress.c m_mirred.c q_htb.c q_cake.c q_cake0.c q_cake2.c \
-					q_fq_codel.c tc_exec.c q_pie.c q_fq.c q_prio.c q_hhf.c q_multiq.c q_mqprio.c q_codel.c
+					q_fq_codel.c tc_exec.c q_pie.c q_fq.c q_prio.c q_hhf.c q_multiq.c q_mqprio.c q_codel.c q_fq_pie.c
 
 LOCAL_MODULE := tc
 
