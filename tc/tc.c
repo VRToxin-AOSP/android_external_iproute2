@@ -29,27 +29,27 @@
 #include "utils.h"
 #include "tc_util.h"
 #include "tc_common.h"
+#include "namespace.h"
 
 int show_stats = 0;
 int show_details = 0;
 int show_raw = 0;
 int show_pretty = 0;
+int show_graph = 0;
 
+int batch_mode = 0;
 int resolve_hosts = 0;
 int use_iec = 0;
 int force = 0;
+bool use_names = false;
+
+static char *conf_file;
+
 struct rtnl_handle rth;
 
 static void *BODY = NULL;	/* cached handle dlopen(NULL) */
 static struct qdisc_util * qdisc_list;
 static struct filter_util * filter_list;
-
-#ifdef ANDROID
-extern struct qdisc_util cbq_qdisc_util;
-extern struct qdisc_util htb_qdisc_util;
-extern struct qdisc_util ingress_qdisc_util;
-extern struct filter_util u32_filter_util;
-#endif
 
 static int print_noqopt(struct qdisc_util *qu, FILE *f,
 			struct rtattr *opt)
@@ -104,18 +104,6 @@ struct qdisc_util *get_qdisc_kind(const char *str)
 	char buf[256];
 	struct qdisc_util *q;
 
-#ifdef ANDROID
-	if (!strcmp(str, "cbq"))
-		return &cbq_qdisc_util;
-	else if (!strcmp(str, "htb"))
-		return &htb_qdisc_util;
-	else if (!strcmp(str, "ingress"))
-		return &ingress_qdisc_util;
-	else {
-		fprintf(stderr, "Android does not support qdisc '%s'\n", str);
-		return NULL;
-	}
-#endif
 	for (q = qdisc_list; q; q = q->next)
 		if (strcmp(q->id, str) == 0)
 			return q;
@@ -161,14 +149,6 @@ struct filter_util *get_filter_kind(const char *str)
 	void *dlh;
 	char buf[256];
 	struct filter_util *q;
-#ifdef ANDROID
-	if (!strcmp(str, "u32"))
-		return &u32_filter_util;
-	else {
-		fprintf(stderr, "Android does not support filter '%s'\n", str);
-		return NULL;
-	}
-#endif
 
 	for (q = filter_list; q; q = q->next)
 		if (strcmp(q->id, str) == 0)
@@ -209,32 +189,27 @@ noexist:
 static void usage(void)
 {
 	fprintf(stderr, "Usage: tc [ OPTIONS ] OBJECT { COMMAND | help }\n"
-#ifdef ANDROID
-			"       tc [-force]\n"
-#else
 			"       tc [-force] -batch filename\n"
-#endif
-	                "where  OBJECT := { qdisc | class | filter | action | monitor }\n"
-	                "       OPTIONS := { -s[tatistics] | -d[etails] | -r[aw] | -p[retty] | -b[atch] [filename] }\n");
+	                "where  OBJECT := { qdisc | class | filter | action | monitor | exec }\n"
+	                "       OPTIONS := { -s[tatistics] | -d[etails] | -r[aw] | -p[retty] | -b[atch] [filename] | "
+			"-n[etns] name |\n"
+			"                    -nm | -nam[es] | { -cf | -conf } path }\n");
 }
 
 static int do_cmd(int argc, char **argv)
 {
 	if (matches(*argv, "qdisc") == 0)
 		return do_qdisc(argc-1, argv+1);
-
 	if (matches(*argv, "class") == 0)
 		return do_class(argc-1, argv+1);
-
 	if (matches(*argv, "filter") == 0)
 		return do_filter(argc-1, argv+1);
-
 	if (matches(*argv, "actions") == 0)
 		return do_action(argc-1, argv+1);
-
 	if (matches(*argv, "monitor") == 0)
 		return do_tcmonitor(argc-1, argv+1);
-
+	if (matches(*argv, "exec") == 0)
+		return do_exec(argc-1, argv+1);
 	if (matches(*argv, "help") == 0) {
 		usage();
 		return 0;
@@ -245,13 +220,13 @@ static int do_cmd(int argc, char **argv)
 	return -1;
 }
 
-#ifndef ANDROID
 static int batch(const char *name)
 {
 	char *line = NULL;
 	size_t len = 0;
 	int ret = 0;
 
+	batch_mode = 1;
 	if (name && strcmp(name, "-") != 0) {
 		if (freopen(name, "r", stdin) == NULL) {
 			fprintf(stderr, "Cannot open file \"%s\" for reading: %s\n",
@@ -289,15 +264,12 @@ static int batch(const char *name)
 	rtnl_close(&rth);
 	return ret;
 }
-#endif
+
 
 int main(int argc, char **argv)
 {
 	int ret;
-#ifndef ANDROID
-	int do_batching = 0;
-	char *batchfile = NULL;
-#endif
+	char *batch_file = NULL;
 
 	while (argc > 1) {
 		if (argv[1][0] != '-')
@@ -311,6 +283,8 @@ int main(int argc, char **argv)
 			++show_raw;
 		} else if (matches(argv[1], "-pretty") == 0) {
 			++show_pretty;
+		} else if (matches(argv[1], "-graph") == 0) {
+			show_graph = 1;
 		} else if (matches(argv[1], "-Version") == 0) {
 			printf("tc utility, iproute2-ss%s\n", SNAPSHOT);
 			return 0;
@@ -321,23 +295,31 @@ int main(int argc, char **argv)
 			return 0;
 		} else if (matches(argv[1], "-force") == 0) {
 			++force;
-#ifndef ANDROID
-		} else 	if (matches(argv[1], "-batch") == 0) {
-			do_batching = 1;
-			if (argc > 2)
-				batchfile = argv[2];
+		} else if (matches(argv[1], "-batch") == 0) {
 			argc--;	argv++;
-#endif
+			if (argc <= 1)
+				usage();
+			batch_file = argv[1];
+		} else if (matches(argv[1], "-netns") == 0) {
+			NEXT_ARG();
+			if (netns_switch(argv[1]))
+				return -1;
+		} else if (matches(argv[1], "-names") == 0 ||
+				matches(argv[1], "-nm") == 0) {
+			use_names = true;
+		} else if (matches(argv[1], "-cf") == 0 ||
+				matches(argv[1], "-conf") == 0) {
+			NEXT_ARG();
+			conf_file = argv[1];
 		} else {
 			fprintf(stderr, "Option \"%s\" is unknown, try \"tc -help\".\n", argv[1]);
 			return -1;
 		}
 		argc--;	argv++;
 	}
-#ifndef ANDROID
-	if (do_batching)
-		return batch(batchfile);
-#endif
+
+	if (batch_file)
+		return batch(batch_file);
 
 	if (argc <= 1) {
 		usage();
@@ -350,8 +332,17 @@ int main(int argc, char **argv)
 		exit(1);
 	}
 
+	if (use_names && cls_names_init(conf_file)) {
+		ret = -1;
+		goto Exit;
+	}
+
 	ret = do_cmd(argc-1, argv+1);
+Exit:
 	rtnl_close(&rth);
+
+	if (use_names)
+		cls_names_uninit();
 
 	return ret;
 }

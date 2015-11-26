@@ -3,7 +3,7 @@ LOCAL_PATH := $(call my-dir)
 include $(CLEAR_VARS)
 # clang cannot compile 'variable length array in structure' in ipxfrm.c
 LOCAL_CLANG := false
-LOCAL_SRC_FILES := utils.c rt_names.c ll_types.c ll_proto.c ll_addr.c inet_proto.c
+LOCAL_SRC_FILES := utils.c rt_names.c ll_types.c ll_proto.c ll_addr.c inet_proto.c namespace.c dnet_pton.c mpls_ntop.c mpls_pton.c ipx_ntop.c dnet_ntop.c
 LOCAL_MODULE := libiprouteutil
 LOCAL_SYSTEM_SHARED_LIBRARIES := libc
 LOCAL_C_INCLUDES := $(LOCAL_PATH)/../include

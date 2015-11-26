@@ -67,7 +67,7 @@ int genl_ctrl_resolve_family(const char *family)
 
 	addattr_l(nlh, 128, CTRL_ATTR_FAMILY_NAME, family, strlen(family) + 1);
 
-	if (rtnl_talk(&rth, nlh, 0, 0, nlh) < 0) {
+	if (rtnl_talk(&rth, nlh, nlh, sizeof(req)) < 0) {
 		fprintf(stderr, "Error talking to the kernel\n");
 		goto errout;
 	}
@@ -112,7 +112,7 @@ errout:
 	return ret;
 }
 
-void print_ctrl_cmd_flags(FILE *fp, __u32 fl)
+static void print_ctrl_cmd_flags(FILE *fp, __u32 fl)
 {
 	fprintf(fp, "\n\t\tCapabilities (0x%x):\n ", fl);
 	if (!fl) {
@@ -334,7 +334,7 @@ static int ctrl_list(int cmd, int argc, char **argv)
 			goto ctrl_done;
 		}
 
-		if (rtnl_talk(&rth, nlh, 0, 0, nlh) < 0) {
+		if (rtnl_talk(&rth, nlh, nlh, sizeof(req)) < 0) {
 			fprintf(stderr, "Error talking to the kernel\n");
 			goto ctrl_done;
 		}
@@ -399,7 +399,7 @@ static int parse_ctrl(struct genl_util *a, int argc, char **argv)
 	if (matches(*argv, "help") == 0)
 		return usage();
 
-	fprintf(stderr, "ctrl command \"%s\" is unknown, try \"ctrl -help\".\n",
+	fprintf(stderr, "ctrl command \"%s\" is unknown, try \"ctrl help\".\n",
 		*argv);
 
 	return -1;
