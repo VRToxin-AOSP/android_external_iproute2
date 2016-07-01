@@ -36,7 +36,6 @@
 
 #include "libnetlink.h"
 #include "utils.h"
-#include "rt_names.h"
 
 int resolve_hosts;
 
@@ -93,7 +92,7 @@ int broadcast_rate = 1000;
 int broadcast_burst = 3000;
 int poll_timeout = 30000;
 
-static void usage(void)
+void usage(void)
 {
 	fprintf(stderr,
 		"Usage: arpd [ -lkh? ] [ -a N ] [ -b dbase ] [ -B number ]"
@@ -101,7 +100,7 @@ static void usage(void)
 	exit(1);
 }
 
-static int handle_if(int ifindex)
+int handle_if(int ifindex)
 {
 	int i;
 
@@ -116,7 +115,7 @@ static int handle_if(int ifindex)
 
 int sysctl_adjusted;
 
-static void do_sysctl_adjustments(void)
+void do_sysctl_adjustments(void)
 {
 	int i;
 
@@ -149,7 +148,7 @@ static void do_sysctl_adjustments(void)
 	sysctl_adjusted = 1;
 }
 
-static void undo_sysctl_adjustments(void)
+void undo_sysctl_adjustments(void)
 {
 	int i;
 
@@ -179,7 +178,7 @@ static void undo_sysctl_adjustments(void)
 }
 
 
-static int send_probe(int ifindex, __u32 addr)
+int send_probe(int ifindex, __u32 addr)
 {
 	struct ifreq ifr;
 	struct sockaddr_in dst;
@@ -239,7 +238,7 @@ static int send_probe(int ifindex, __u32 addr)
 
 /* Be very tough on sending probes: 1 per second with burst of 3. */
 
-static int queue_active_probe(int ifindex, __u32 addr)
+int queue_active_probe(int ifindex, __u32 addr)
 {
 	static struct timeval prev;
 	static int buckets;
@@ -263,7 +262,7 @@ static int queue_active_probe(int ifindex, __u32 addr)
 	return -1;
 }
 
-static int respond_to_kernel(int ifindex, __u32 addr, char *lla, int llalen)
+int respond_to_kernel(int ifindex, __u32 addr, char *lla, int llalen)
 {
 	struct {
 		struct nlmsghdr 	n;
@@ -287,7 +286,7 @@ static int respond_to_kernel(int ifindex, __u32 addr, char *lla, int llalen)
 	return rtnl_send(&rth, &req, req.n.nlmsg_len) <= 0;
 }
 
-static void prepare_neg_entry(__u8 *ndata, __u32 stamp)
+void prepare_neg_entry(__u8 *ndata, __u32 stamp)
 {
 	ndata[0] = 0xFF;
 	ndata[1] = 0;
@@ -298,7 +297,7 @@ static void prepare_neg_entry(__u8 *ndata, __u32 stamp)
 }
 
 
-static int do_one_request(struct nlmsghdr *n)
+int do_one_request(struct nlmsghdr *n)
 {
 	struct ndmsg *ndm = NLMSG_DATA(n);
 	int len = n->nlmsg_len;
@@ -427,16 +426,12 @@ static int do_one_request(struct nlmsghdr *n)
 	return 0;
 }
 
-static void load_initial_table(void)
+void load_initial_table(void)
 {
-	if (rtnl_wilddump_request(&rth, AF_INET, RTM_GETNEIGH) < 0) {
-		perror("dump request failed");
-		exit(1);
-	}
-
+	rtnl_wilddump_request(&rth, AF_INET, RTM_GETNEIGH);
 }
 
-static void get_kern_msg(void)
+void get_kern_msg(void)
 {
 	int status;
 	struct nlmsghdr *h;
@@ -482,7 +477,7 @@ static void get_kern_msg(void)
 }
 
 /* Receive gratuitous ARP messages and store them, that's all. */
-static void get_arp_pkt(void)
+void get_arp_pkt(void)
 {
 	unsigned char buf[1024];
 	struct sockaddr_ll sll;
@@ -537,7 +532,7 @@ static void get_arp_pkt(void)
 	dbase->put(dbase, &dbkey, &dbdat, 0);
 }
 
-static void catch_signal(int sig, void (*handler)(int))
+void catch_signal(int sig, void (*handler)(int))
 {
 	struct sigaction sa;
 
@@ -553,21 +548,21 @@ static void catch_signal(int sig, void (*handler)(int))
 sigjmp_buf env;
 volatile int in_poll;
 
-static void sig_exit(int signo)
+void sig_exit(int signo)
 {
 	do_exit = 1;
 	if (in_poll)
 		siglongjmp(env, 1);
 }
 
-static void sig_sync(int signo)
+void sig_sync(int signo)
 {
 	do_sync = 1;
 	if (in_poll)
 		siglongjmp(env, 1);
 }
 
-static void sig_stats(int signo)
+void sig_stats(int signo)
 {
 	do_sync = 1;
 	do_stats = 1;
@@ -575,7 +570,7 @@ static void sig_stats(int signo)
 		siglongjmp(env, 1);
 }
 
-static void send_stats(void)
+void send_stats(void)
 {
 	syslog(LOG_INFO, "arp_rcv: n%lu c%lu app_rcv: tot %lu hits %lu bad %lu neg %lu sup %lu",
 	       stats.arp_new, stats.arp_change,
@@ -722,7 +717,8 @@ int main(int argc, char **argv)
 				goto do_abort;
 			}
 
-			if (ll_addr_a2n((char *) b1, 6, macbuf) != 6)
+			dbdat.data = hexstring_a2n(macbuf, b1, 6);
+			if (dbdat.data == NULL)
 				goto do_abort;
 			dbdat.size = 6;
 
@@ -747,7 +743,7 @@ int main(int argc, char **argv)
 					printf("%-8d %-15s %s\n",
 					       key->iface,
 					       inet_ntoa(*(struct in_addr*)&key->addr),
-					       ll_addr_n2a(dbdat.data, 6, ARPHRD_ETHER, b1, 18));
+					       hexstring_n2a(dbdat.data, 6, b1, 18));
 				} else {
 					printf("%-8d %-15s FAILED: %dsec ago\n",
 					       key->iface,

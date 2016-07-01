@@ -20,7 +20,7 @@
 #define MAX_FIELDS		128
 
 /* Maximum number of header lines */
-#define HDR_LINES		10
+#define HDR_LINES 		10
 
 /* default field width if none specified */
 #define FIELD_WIDTH_DEFAULT	8
@@ -41,8 +41,7 @@
 static struct option opts[] = {
 	{ "version", 0, NULL, 'V' },
 	{ "count", 1, NULL, 'c' },
-	{ "dump", 0, NULL, 'd' },
-	{ "json", 0, NULL, 'j' },
+	{ "dump", 1, NULL, 'd' },
 	{ "file", 1, NULL, 'f' },
 	{ "help", 0, NULL, 'h' },
 	{ "interval", 1, NULL, 'i' },
@@ -64,8 +63,6 @@ static int usage(char *name, int exit_code)
 			"Print <count> number of intervals\n");
 	fprintf(stderr, "\t-d --dump\t\t"
 			"Dump list of available files/keys\n");
-	fprintf(stderr, "\t-j --json\t\t"
-			"Display in JSON format\n");
 	fprintf(stderr, "\t-f --file <file>\tStatistics file to use\n");
 	fprintf(stderr, "\t-h --help\t\tThis help message\n");
 	fprintf(stderr, "\t-i --interval <intv>\t"
@@ -97,35 +94,14 @@ static void print_line(FILE *of, const struct lnstat_file *lnstat_files,
 	int i;
 
 	for (i = 0; i < fp->num; i++) {
-		const struct lnstat_field *lf = fp->params[i].lf;
+		struct lnstat_field *lf = fp->params[i].lf;
+		char formatbuf[255];
 
-		fprintf(of, "%*lu|", fp->params[i].print.width, lf->result);
+		snprintf(formatbuf, sizeof(formatbuf)-1, "%%%ulu|",
+			 fp->params[i].print.width);
+		fprintf(of, formatbuf, lf->result);
 	}
 	fputc('\n', of);
-}
-
-static void print_json(FILE *of, const struct lnstat_file *lnstat_files,
-		       const struct field_params *fp)
-{
-	int i;
-	const char *sep;
-	const char *base = NULL;
-
-	fputs("{\n", of);
-	for (i = 0; i < fp->num; i++) {
-		const struct lnstat_field *lf = fp->params[i].lf;
-
-		if (!base || lf->file->basename != base) {
-			if (base) fputs("},\n", of);
-			base = lf->file->basename;
-			sep = "\n\t";
-			fprintf(of, "    \"%s\":{", base);
-		}
-		fprintf(of, "%s\"%s\":%lu", sep,
-			lf->name, lf->result);
-		sep = ",\n\t";
-	}
-	fputs("}\n}\n", of);
 }
 
 /* find lnstat_field according to user specification */
@@ -145,7 +121,7 @@ static int map_field_params(struct lnstat_file *lnstat_files,
 				if (!fps->params[j].print.width)
 					fps->params[j].print.width =
 							FIELD_WIDTH_DEFAULT;
-
+				
 				if (++j >= MAX_FIELDS - 1) {
 					fprintf(stderr,
 						"WARN: MAX_FIELDS (%d) reached,"
@@ -190,25 +166,26 @@ static struct table_hdr *build_hdr_string(struct lnstat_file *lnstat_files,
 
 	for (i = 0; i < HDR_LINES; i++) {
 		th.hdr[i] = malloc(HDR_LINE_LENGTH);
-		memset(th.hdr[i], 0, HDR_LINE_LENGTH);
+		memset(th.hdr[i], 0, sizeof(th.hdr[i]));
 	}
 
 	for (i = 0; i < fps->num; i++) {
 		char *cname, *fname = fps->params[i].lf->name;
+		char fmt[12];
 		unsigned int width = fps->params[i].print.width;
 
-		snprintf(th.hdr[0]+ofs, width+2, "%*.*s|", width, width,
+		snprintf(fmt, sizeof(fmt)-1, "%%%u.%us|", width, width);
+
+		snprintf(th.hdr[0]+ofs, width+2, fmt,
 			 fps->params[i].lf->file->basename);
 
 		cname = fname;
 		for (h = 1; h < HDR_LINES; h++) {
 			if (cname - fname >= strlen(fname))
-				snprintf(th.hdr[h]+ofs, width+2,
-					 "%*.*s|", width, width, "");
+				snprintf(th.hdr[h]+ofs, width+2, fmt, "");
 			else {
 				th.num_lines = h+1;
-				snprintf(th.hdr[h]+ofs, width+2,
-					 "%*.*s|", width, width, cname);
+				snprintf(th.hdr[h]+ofs, width+2, fmt, cname);
 			}
 			cname += width;
 		}
@@ -241,16 +218,15 @@ int main(int argc, char **argv)
 {
 	struct lnstat_file *lnstat_files;
 	const char *basename;
-	int i, c;
+	int c;
 	int interval = DEFAULT_INTERVAL;
 	int hdr = 2;
 	enum {
 		MODE_DUMP,
-		MODE_JSON,
 		MODE_NORMAL,
 	} mode = MODE_NORMAL;
-	unsigned long count = 0;
-	struct table_hdr *header;
+
+	unsigned long count = 1;
 	static struct field_params fp;
 	int num_req_files = 0;
 	char *req_files[LNSTAT_MAX_FILES];
@@ -272,73 +248,70 @@ int main(int argc, char **argv)
 		num_req_files = 1;
 	}
 
-	while ((c = getopt_long(argc, argv,"Vc:djf:h?i:k:s:w:",
+	while ((c = getopt_long(argc, argv,"Vc:df:h?i:k:s:w:",
 				opts, NULL)) != -1) {
-		int len = 0;
+		int i, len = 0;
 		char *tmp, *tok;
 
 		switch (c) {
-		case 'c':
-			count = strtoul(optarg, NULL, 0);
-			break;
-		case 'd':
-			mode = MODE_DUMP;
-			break;
-		case 'j':
-			mode = MODE_JSON;
-			break;
-		case 'f':
-			req_files[num_req_files++] = strdup(optarg);
-			break;
-		case '?':
-		case 'h':
-			usage(argv[0], 0);
-			break;
-		case 'i':
-			sscanf(optarg, "%u", &interval);
-			break;
-		case 'k':
-			tmp = strdup(optarg);
-			if (!tmp)
+			case 'c':
+				count = strtoul(optarg, NULL, 0);
 				break;
-			for (tok = strtok(tmp, ",");
-			     tok;
-			     tok = strtok(NULL, ",")) {
-				if (fp.num >= MAX_FIELDS) {
-					fprintf(stderr,
-						"WARN: too many keys"
-						" requested: (%d max)\n",
-						MAX_FIELDS);
+			case 'd':
+				mode = MODE_DUMP;
+				break;
+			case 'f':
+				req_files[num_req_files++] = strdup(optarg);
+				break;
+			case '?':
+			case 'h':
+				usage(argv[0], 0);
+				break;
+			case 'i':
+				sscanf(optarg, "%u", &interval);
+				break;
+			case 'k':
+				tmp = strdup(optarg);
+				if (!tmp)
 					break;
+				for (tok = strtok(tmp, ",");
+				     tok;
+				     tok = strtok(NULL, ",")) {
+					if (fp.num >= MAX_FIELDS) {
+						fprintf(stderr, 
+							"WARN: too many keys"
+							" requested: (%d max)\n",
+							MAX_FIELDS);
+						break;
+					}
+					fp.params[fp.num++].name = tok;
 				}
-				fp.params[fp.num++].name = tok;
-			}
-			break;
-		case 's':
-			sscanf(optarg, "%u", &hdr);
-			break;
-		case 'w':
-			tmp = strdup(optarg);
-			if (!tmp)
 				break;
-			i = 0;
-			for (tok = strtok(tmp, ",");
-			     tok;
-			     tok = strtok(NULL, ",")) {
-				len  = strtoul(tok, NULL, 0);
-				if (len > FIELD_WIDTH_MAX)
-					len = FIELD_WIDTH_MAX;
-				fp.params[i].print.width = len;
-				i++;
-			}
-			if (i == 1) {
-				for (i = 0; i < MAX_FIELDS; i++)
+			case 's':
+				sscanf(optarg, "%u", &hdr);
+				break;
+			case 'w':
+				tmp = strdup(optarg);
+				if (!tmp)
+					break;
+				i = 0;
+				for (tok = strtok(tmp, ",");
+				     tok;
+				     tok = strtok(NULL, ",")) {
+					len  = strtoul(tok, NULL, 0);
+					if (len > FIELD_WIDTH_MAX)
+						len = FIELD_WIDTH_MAX;
 					fp.params[i].print.width = len;
-			}
-			break;
-		default:
-			usage(argv[0], 1);
-			break;
+					i++;
+				}
+				if (i == 1) {
+					for (i = 0; i < MAX_FIELDS; i++)
+						fp.params[i].print.width = len;
+				}
+				break;
+			default:
+				usage(argv[0], 1);
+				break;
 		}
 	}
 
@@ -346,12 +319,13 @@ int main(int argc, char **argv)
 				       (const char **) req_files);
 
 	switch (mode) {
+		int i;
+		struct table_hdr *header;
 	case MODE_DUMP:
-		lnstat_dump(stdout, lnstat_files);
+		lnstat_dump(stderr, lnstat_files);
 		break;
-
 	case MODE_NORMAL:
-	case MODE_JSON:
+
 		if (!map_field_params(lnstat_files, &fp, interval))
 			exit(1);
 
@@ -360,25 +334,16 @@ int main(int argc, char **argv)
 			exit(1);
 
 		if (interval < 1 )
-			interval = 1;
+			interval=1;
 
-		for (i = 0; i < count || !count; ) {
+		for (i = 0; i < count; i++) {
+			if  ((hdr > 1 && (! (i % 20))) || (hdr == 1 && i == 0))
+				print_hdr(stdout, header);
 			lnstat_update(lnstat_files);
-			if (mode == MODE_JSON)
-				print_json(stdout, lnstat_files, &fp);
-			else {
-				if  ((hdr > 1 &&
-				      (! (i % 20))) || (hdr == 1 && i == 0))
-					print_hdr(stdout, header);
-				print_line(stdout, lnstat_files, &fp);
-			}
+			print_line(stdout, lnstat_files, &fp);
 			fflush(stdout);
-			if (i < count - 1 || !count)
-				sleep(interval);
-			if (count)
-				++i;
+			sleep(interval);
 		}
-		break;
 	}
 
 	return 1;

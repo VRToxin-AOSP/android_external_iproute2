@@ -8,7 +8,6 @@
 #else
 
 #define RTLD_LAZY 0
-#define RTLD_GLOBAL 1
 #define _FAKE_DLFCN_HDL (void *)0xbeefcafe
 
 static inline void *dlopen(const char *file, int flag)

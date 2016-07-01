@@ -44,7 +44,7 @@ static int usage(void)
 	return -1;
 }
 
-static int tc_qdisc_modify(int cmd, unsigned flags, int argc, char **argv)
+int tc_qdisc_modify(int cmd, unsigned flags, int argc, char **argv)
 {
 	struct qdisc_util *q = NULL;
 	struct tc_estimator est;
@@ -83,7 +83,7 @@ static int tc_qdisc_modify(int cmd, unsigned flags, int argc, char **argv)
 				duparg("handle", *argv);
 			NEXT_ARG();
 			if (get_qdisc_handle(&handle, *argv))
-				invarg("invalid qdisc ID", *argv);
+				invarg(*argv, "invalid qdisc ID");
 			req.t.tcm_handle = handle;
 		} else if (strcmp(*argv, "root") == 0) {
 			if (req.t.tcm_parent) {
@@ -111,7 +111,7 @@ static int tc_qdisc_modify(int cmd, unsigned flags, int argc, char **argv)
 			if (req.t.tcm_parent)
 				duparg("parent", *argv);
 			if (get_tc_classid(&handle, *argv))
-				invarg("invalid parent ID", *argv);
+				invarg(*argv, "invalid parent ID");
 			req.t.tcm_parent = handle;
 		} else if (matches(*argv, "estimator") == 0) {
 			if (parse_estimator(&argc, &argv, &est))
@@ -138,13 +138,12 @@ static int tc_qdisc_modify(int cmd, unsigned flags, int argc, char **argv)
 		addattr_l(&req.n, sizeof(req), TCA_RATE, &est, sizeof(est));
 
 	if (q) {
-		if (q->parse_qopt) {
-			if (q->parse_qopt(q, argc, argv, &req.n))
-				return 1;
-		} else if (argc) {
+		if (!q->parse_qopt) {
 			fprintf(stderr, "qdisc '%s' does not support option parsing\n", k);
 			return -1;
 		}
+		if (q->parse_qopt(q, argc, argv, &req.n))
+			return 1;
 	} else {
 		if (argc) {
 			if (matches(*argv, "help") == 0)
@@ -178,7 +177,7 @@ static int tc_qdisc_modify(int cmd, unsigned flags, int argc, char **argv)
 	if (d[0])  {
 		int idx;
 
-		ll_init_map(&rth);
+ 		ll_init_map(&rth);
 
 		if ((idx = ll_name_to_index(d)) == 0) {
 			fprintf(stderr, "Cannot find device \"%s\"\n", d);
@@ -187,7 +186,7 @@ static int tc_qdisc_modify(int cmd, unsigned flags, int argc, char **argv)
 		req.t.tcm_ifindex = idx;
 	}
 
-	if (rtnl_talk(&rth, &req.n, NULL, 0) < 0)
+	if (rtnl_talk(&rth, &req.n, 0, 0, NULL) < 0)
 		return 2;
 
 	return 0;
@@ -278,7 +277,7 @@ int print_qdisc(const struct sockaddr_nl *who,
 }
 
 
-static int tc_qdisc_list(int argc, char **argv)
+int tc_qdisc_list(int argc, char **argv)
 {
 	struct tcmsg t;
 	char d[16];
@@ -309,7 +308,7 @@ static int tc_qdisc_list(int argc, char **argv)
 		argc--; argv++;
 	}
 
-	ll_init_map(&rth);
+ 	ll_init_map(&rth);
 
 	if (d[0]) {
 		if ((t.tcm_ifindex = ll_name_to_index(d)) == 0) {
@@ -319,12 +318,12 @@ static int tc_qdisc_list(int argc, char **argv)
 		filter_ifindex = t.tcm_ifindex;
 	}
 
-	if (rtnl_dump_request(&rth, RTM_GETQDISC, &t, sizeof(t)) < 0) {
+ 	if (rtnl_dump_request(&rth, RTM_GETQDISC, &t, sizeof(t)) < 0) {
 		perror("Cannot send dump request");
 		return 1;
 	}
 
-	if (rtnl_dump_filter(&rth, print_qdisc, stdout) < 0) {
+ 	if (rtnl_dump_filter(&rth, print_qdisc, stdout) < 0) {
 		fprintf(stderr, "Dump terminated\n");
 		return 1;
 	}

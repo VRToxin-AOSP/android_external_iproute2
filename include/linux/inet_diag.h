@@ -1,5 +1,5 @@
 #ifndef _INET_DIAG_H_
-#define _INET_DIAG_H_
+#define _INET_DIAG_H_ 1
 
 #include <linux/types.h>
 
@@ -109,11 +109,10 @@ enum {
 	INET_DIAG_TOS,
 	INET_DIAG_TCLASS,
 	INET_DIAG_SKMEMINFO,
-	INET_DIAG_SHUTDOWN,
-	INET_DIAG_DCTCPINFO,
 };
 
-#define INET_DIAG_MAX INET_DIAG_DCTCPINFO
+#define INET_DIAG_MAX INET_DIAG_SKMEMINFO
+
 
 /* INET_DIAG_MEM */
 
@@ -133,18 +132,5 @@ struct tcpvegas_info {
 	__u32	tcpv_minrtt;
 };
 
-/* INET_DIAG_DCTCPINFO */
 
-struct tcp_dctcp_info {
-	__u16	dctcp_enabled;
-	__u16	dctcp_ce_state;
-	__u32	dctcp_alpha;
-	__u32	dctcp_ab_ecn;
-	__u32	dctcp_ab_tot;
-};
-
-union tcp_cc_info {
-	struct tcpvegas_info	vegas;
-	struct tcp_dctcp_info	dctcp;
-};
 #endif /* _INET_DIAG_H_ */

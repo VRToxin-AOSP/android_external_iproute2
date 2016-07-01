@@ -25,7 +25,6 @@ static char		**yy_argv;
 static int		yy_argc;
 static FILE		*yy_fp;
 static ssfilter_t	*yy_ret;
-static int tok_type = -1;
 
 static int yylex(void);
 
@@ -221,22 +220,14 @@ int yylex(void)
 		return '(';
 	if (strcmp(curtok, ")") == 0)
 		return ')';
-	if (strcmp(curtok, "dst") == 0) {
-		tok_type = DCOND;
+	if (strcmp(curtok, "dst") == 0)
 		return DCOND;
-	}
-	if (strcmp(curtok, "src") == 0) {
-                tok_type = SCOND;
+	if (strcmp(curtok, "src") == 0)
 		return SCOND;
-        }
-	if (strcmp(curtok, "dport") == 0) {
-		tok_type = DPORT;
+	if (strcmp(curtok, "dport") == 0)
 		return DPORT;
-	}
-	if (strcmp(curtok, "sport") == 0) {
-		tok_type = SPORT;
+	if (strcmp(curtok, "sport") == 0)
 		return SPORT;
-	}
 	if (strcmp(curtok, ">=") == 0 ||
 	    strcmp(curtok, "ge") == 0 ||
 	    strcmp(curtok, "geq") == 0)
@@ -259,11 +250,9 @@ int yylex(void)
 	if (strcmp(curtok, "<") == 0 ||
 	    strcmp(curtok, "lt") == 0)
 		return '<';
-	if (strcmp(curtok, "autobound") == 0) {
-		tok_type = AUTOBOUND;
+	if (strcmp(curtok, "autobound") == 0)
 		return AUTOBOUND;
-	}
-	yylval = (void*)parse_hostcond(curtok, tok_type == SPORT || tok_type == DPORT);
+	yylval = (void*)parse_hostcond(curtok);
 	if (yylval == NULL) {
 		fprintf(stderr, "Cannot parse dst/src address.\n");
 		exit(1);

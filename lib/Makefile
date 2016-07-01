@@ -1,15 +1,8 @@
-include ../Config
-
-ifeq ($(IP_CONFIG_SETNS),y)
-	CFLAGS += -DHAVE_SETNS
-endif
-
 CFLAGS += -fPIC
 
-UTILOBJ=utils.o rt_names.o ll_types.o ll_proto.o ll_addr.o inet_proto.o namespace.o \
-	names.o color.o
+UTILOBJ=utils.o rt_names.o ll_types.o ll_proto.o ll_addr.o inet_proto.o
 
-NLOBJ=libgenl.o ll_map.o libnetlink.o
+NLOBJ=ll_map.o libnetlink.o
 
 all: libnetlink.a libutil.a
 

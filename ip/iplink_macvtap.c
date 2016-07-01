@@ -17,22 +17,17 @@
 #include "utils.h"
 #include "ip_common.h"
 
-static void print_explain(FILE *f)
+static void explain(void)
 {
 	fprintf(stderr,
 		"Usage: ... macvtap mode { private | vepa | bridge | passthru }\n"
 	);
 }
 
-static void explain(void)
-{
-	print_explain(stderr);
-}
-
-static int mode_arg(const char *arg)
+static int mode_arg(void)
 {
         fprintf(stderr, "Error: argument of \"mode\" must be \"private\", "
-		"\"vepa\", \"bridge\" or \"passthru\", not \"%s\"\n", arg);
+		"\"vepa\", \"bridge\" or \"passthru\" \n");
         return -1;
 }
 
@@ -53,14 +48,14 @@ static int macvtap_parse_opt(struct link_util *lu, int argc, char **argv,
 			else if (strcmp(*argv, "passthru") == 0)
 				mode = MACVLAN_MODE_PASSTHRU;
 			else
-				return mode_arg(*argv);
+				return mode_arg();
 
 			addattr32(n, 1024, IFLA_MACVLAN_MODE, mode);
 		} else if (matches(*argv, "help") == 0) {
 			explain();
 			return -1;
 		} else {
-			fprintf(stderr, "macvtap: unknown command \"%s\"?\n", *argv);
+			fprintf(stderr, "macvtap: what is \"%s\"?\n", *argv);
 			explain();
 			return -1;
 		}
@@ -90,16 +85,9 @@ static void macvtap_print_opt(struct link_util *lu, FILE *f, struct rtattr *tb[]
 		:				 "unknown");
 }
 
-static void macvtap_print_help(struct link_util *lu, int argc, char **argv,
-	FILE *f)
-{
-	print_explain(f);
-}
-
 struct link_util macvtap_link_util = {
 	.id		= "macvtap",
 	.maxattr	= IFLA_MACVLAN_MAX,
 	.parse_opt	= macvtap_parse_opt,
 	.print_opt	= macvtap_print_opt,
-	.print_help	= macvtap_print_help,
 };

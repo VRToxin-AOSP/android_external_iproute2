@@ -55,12 +55,12 @@ static int generic_proc_open(const char *env, const char *name)
 	return open(p, O_RDONLY);
 }
 
-static int net_rtacct_open(void)
+int net_rtacct_open(void)
 {
 	return generic_proc_open("PROC_NET_RTACCT", "net/rt_acct");
 }
 
-static __u32 rmap[256/4];
+__u32 rmap[256/4];
 
 struct rtacct_data
 {
@@ -71,12 +71,12 @@ struct rtacct_data
 	char			signature[128];
 };
 
-static struct rtacct_data kern_db_static;
+struct rtacct_data kern_db_static;
 
-static struct rtacct_data *kern_db = &kern_db_static;
-static struct rtacct_data *hist_db;
+struct rtacct_data *kern_db = &kern_db_static;
+struct rtacct_data *hist_db;
 
-static void nread(int fd, char *buf, int tot)
+void nread(int fd, char *buf, int tot)
 {
 	int count = 0;
 
@@ -93,7 +93,8 @@ static void nread(int fd, char *buf, int tot)
 	}
 }
 
-static __u32 *read_kern_table(__u32 *tbl)
+
+__u32 *read_kern_table(__u32 *tbl)
 {
 	static __u32 *tbl_ptr;
 	int fd;
@@ -129,7 +130,7 @@ static __u32 *read_kern_table(__u32 *tbl)
 	return tbl;
 }
 
-static void format_rate(FILE *fp, double rate)
+void format_rate(FILE *fp, double rate)
 {
 	char temp[64];
 
@@ -143,7 +144,7 @@ static void format_rate(FILE *fp, double rate)
 		fprintf(fp, " %-10u", (unsigned)rate);
 }
 
-static void format_count(FILE *fp, unsigned long long val)
+void format_count(FILE *fp, unsigned long long val)
 {
 	if (val > 1024*1024*1024)
 		fprintf(fp, " %10lluM", val/(1024*1024));
@@ -153,7 +154,7 @@ static void format_count(FILE *fp, unsigned long long val)
 		fprintf(fp, " %10llu", val);
 }
 
-static void dump_abs_db(FILE *fp)
+void dump_abs_db(FILE *fp)
 {
 	int realm;
 	char b1[16];
@@ -215,7 +216,7 @@ static void dump_abs_db(FILE *fp)
 }
 
 
-static void dump_incr_db(FILE *fp)
+void dump_incr_db(FILE *fp)
 {
 	int k, realm;
 	char b1[16];
@@ -292,13 +293,13 @@ static void dump_incr_db(FILE *fp)
 
 static int children;
 
-static void sigchild(int signo)
+void sigchild(int signo)
 {
 }
 
 /* Server side only: read kernel data, update tables, calculate rates. */
 
-static void update_db(int interval)
+void update_db(int interval)
 {
 	int i;
 	__u32 *ival;
@@ -330,7 +331,7 @@ static void update_db(int interval)
 	}
 }
 
-static void send_db(int fd)
+void send_db(int fd)
 {
 	int tot = 0;
 
@@ -350,7 +351,7 @@ static void send_db(int fd)
 #define T_DIFF(a,b) (((a).tv_sec-(b).tv_sec)*1000 + ((a).tv_usec-(b).tv_usec)/1000)
 
 
-static void pad_kern_table(struct rtacct_data *dat, __u32 *ival)
+void pad_kern_table(struct rtacct_data *dat, __u32 *ival)
 {
 	int i;
 	memset(dat->rate, 0, sizeof(dat->rate));
@@ -360,7 +361,7 @@ static void pad_kern_table(struct rtacct_data *dat, __u32 *ival)
 		dat->val[i] = ival[i];
 }
 
-static void server_loop(int fd)
+void server_loop(int fd)
 {
 	struct timeval snaptime = { 0 };
 	struct pollfd p;
@@ -409,7 +410,7 @@ static void server_loop(int fd)
 	}
 }
 
-static int verify_forging(int fd)
+int verify_forging(int fd)
 {
 	struct ucred cred;
 	socklen_t olen = sizeof(cred);
